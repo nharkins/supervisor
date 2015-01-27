@@ -110,8 +110,11 @@ class Supervisor:
         added   = [cand for cand in new if cand.name not in curdict]
         removed = [cand for cand in cur if cand.name not in newdict]
 
-        changed = [cand for cand in new
-                   if cand != curdict.get(cand.name, cand)]
+        changed = []
+        for cand_running in cur:
+            cand_new = newdict.get(cand_running.name, cand_running)
+            if not cand_running.safe_compare_merge(cand_new):
+                changed.append(cand_new)
 
         return added, changed, removed
 

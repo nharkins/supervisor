@@ -1749,17 +1749,23 @@ class Config(object):
                                                  self.name)
 
 class ProcessConfig(Config):
+    param_changes_not_requiring_restart = [
+        'autostart', 'autorestart', 'startsecs', 'startretries',
+        'stopsignal', 'stopwaitsecs', 'stopasgroup', 'killasgroup',
+        'exitcodes']
+    # i.e. metadata which do not affect the process itself,
+    # they affect actions which are triggered by other events,
+    # and can be updated in memory, so they affect the next instance.
     req_param_names = [
         'name', 'uid', 'command', 'directory', 'umask', 'priority',
-        'autostart', 'autorestart', 'startsecs', 'startretries',
         'stdout_logfile', 'stdout_capture_maxbytes',
         'stdout_events_enabled', 'stdout_syslog',
         'stdout_logfile_backups', 'stdout_logfile_maxbytes',
         'stderr_logfile', 'stderr_capture_maxbytes',
         'stderr_logfile_backups', 'stderr_logfile_maxbytes',
         'stderr_events_enabled', 'stderr_syslog',
-        'stopsignal', 'stopwaitsecs', 'stopasgroup', 'killasgroup',
-        'exitcodes', 'redirect_stderr' ]
+        'redirect_stderr' ]
+    req_param_names += param_changes_not_requiring_restart
     optional_param_names = [ 'environment', 'serverurl' ]
 
     def __init__(self, options, **params):
@@ -1780,6 +1786,20 @@ class ProcessConfig(Config):
                 return False
 
         return True
+
+    def safe_compare_merge(self, other):
+        if self.__eq__(other):
+            return True  # they are the same, no-op
+        for name in self.req_param_names + self.optional_param_names:
+            if Automatic in [getattr(self, name), getattr(other, name)] :
+                continue
+            other_val = getattr(other, name)
+            if getattr(self, name) != other_val:
+                if name in self.param_changes_not_requiring_restart:
+                    setattr(self, name, other_val)
+                else:
+                    return False  # we'll need to restart
+        return True  # they are "same" (we made them so, don't restart :)
 
     def create_autochildlogs(self):
         # temporary logfiles which are erased at start time
